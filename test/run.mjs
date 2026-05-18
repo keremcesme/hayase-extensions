@@ -6,6 +6,50 @@ import animetosho from '../dist/animetosho.js'
 const log = (...a) => console.log('[test]', ...a)
 const section = name => log(`\n── ${name} ──`)
 
+// mirror of extractEpisodeNumbers in src/nyaa.js — used for assertions about results
+function extractNumbersFromTitle (title) {
+  const cleaned = title
+    .replace(/\b\d{3,4}p\b/gi, '')
+    .replace(/\b(?:19|20)\d{2}\b/g, '')
+    .replace(/\bx26[45]\b/gi, '')
+    .replace(/\bh\.?26[45]\b/gi, '')
+    .replace(/\b[57]\.1\b/g, '')
+    .replace(/\b\d+(?:bit|fps|kbps|ch)\b/gi, '')
+    .replace(/\bv\d+\b/gi, '')
+    .replace(/\[[A-F0-9]{6,}\]/gi, '')
+    .replace(/\([A-F0-9]{6,}\)/gi, '')
+  const out = new Set()
+  const re = /(?<![\d.])(\d{1,4})(?![\d.])/g
+  let m
+  while ((m = re.exec(cleaned)) !== null) out.add(Number(m[1]))
+  return out
+}
+
+function unitFilterChecks () {
+  section('Nyaa episode-filter unit checks')
+  const cases = [
+    // [title, ep, abs, shouldMatch, why]
+    ['Tensei Shitara Slime Datta Ken 4th Season - 06 [CR WEB-DL][MultiSub]', 6, 78, true, 'season - 06'],
+    ['Tensei Shitara Slime Datta Ken 4th Season - 06 [ WEB ] | Episode 78', 6, 78, true, 'has both 06 and 78'],
+    ['Tensei Shitara Slime Datta Ken 4th Season - 04 [ WEB ] | Episode 76', 6, 78, false, 'only 04 and 76 — leaked by Nyaa fuzzy match'],
+    ['Tensei Shitara Slime Datta Ken 4th Season - 06 [CR WEBRip][HEVC]', 6, 78, true, 'season - 06 with hevc'],
+    ['[Erai-raws] Spy x Family Season 3 - 01 [1080p][9FCD1ABC]', 1, null, true, 'ep 01, CRC stripped'],
+    ['[Erai-raws] Spy x Family Season 3 - 02 [1080p]', 1, null, false, 'ep 02 should not match ep 1'],
+    ['[Group] One Piece 1000 [1080p]', 1000, null, true, '4-digit episode'],
+    ['[Group] Show - 06v2 [1080p]', 6, null, true, 'v2 suffix'],
+    ['[Group] Show S04E06 [1080p][10bit][AAC]', 6, null, true, '10bit stripped, S04E06']
+  ]
+  for (const [title, ep, abs, expected, why] of cases) {
+    const nums = extractNumbersFromTitle(title)
+    const candidates = new Set()
+    if (ep != null) candidates.add(ep)
+    if (abs != null) candidates.add(abs)
+    const got = [...candidates].some(c => nums.has(c))
+    assert.equal(got, expected, `${why} — title="${title}" nums=${[...nums]} want=${[...candidates]}`)
+    log(`  ${expected ? '✓' : '✗'} ${why}`)
+  }
+}
+
 function assertCommon (r, { allowEmptyHash = false } = {}) {
   assert.equal(typeof r.title, 'string', 'title is string')
   assert.equal(typeof r.link, 'string', 'link is string')
@@ -31,6 +75,28 @@ async function testNyaa () {
   log(`  single() → ${single.length} results`)
   assert.ok(single.length > 0)
   single.slice(0, 2).forEach(r => assertCommon(r))
+  for (const r of single) {
+    const nums = extractNumbersFromTitle(r.title)
+    assert.ok(nums.has(1), `every single() result should contain ep 1, got "${r.title}"`)
+  }
+  log('  single() episode filter holds for every result')
+
+  log('  Slime S4E6 precision check (regression for "Episode 76" leak)')
+  const slime = await nyaa.single({
+    titles: ['That Time I Got Reincarnated as a Slime'],
+    episode: 6,
+    absoluteEpisodeNumber: 78,
+    resolution: '1080',
+    exclusions: [],
+    fetch: globalThis.fetch
+  })
+  log(`    → ${slime.length} results`)
+  for (const r of slime) {
+    const nums = extractNumbersFromTitle(r.title)
+    const ok = nums.has(6) || nums.has(78)
+    assert.ok(ok, `slime result must match ep 6 or abs 78, got "${r.title}" with numbers ${[...nums]}`)
+  }
+  log('    every slime result matches 6 or 78')
 
   const filtered = await nyaa.single({
     titles: ['Spy x Family'], episode: 1, resolution: '1080', exclusions: ['x265'], fetch: globalThis.fetch
@@ -123,6 +189,7 @@ async function testAnimeTosho () {
 }
 
 async function run () {
+  unitFilterChecks()
   await testNyaa()
   await testSeadex()
   await testAnimeTosho()

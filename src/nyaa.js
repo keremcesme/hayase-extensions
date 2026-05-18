@@ -69,6 +69,34 @@ function parseRss (xml) {
   return items
 }
 
+function extractEpisodeNumbers (title) {
+  const cleaned = title
+    .replace(/\b\d{3,4}p\b/gi, '')
+    .replace(/\b(?:19|20)\d{2}\b/g, '')
+    .replace(/\bx26[45]\b/gi, '')
+    .replace(/\bh\.?26[45]\b/gi, '')
+    .replace(/\b[57]\.1\b/g, '')
+    .replace(/\b\d+(?:bit|fps|kbps|ch)\b/gi, '')
+    .replace(/\bv\d+\b/gi, '')
+    .replace(/\[[A-F0-9]{6,}\]/gi, '')
+    .replace(/\([A-F0-9]{6,}\)/gi, '')
+  const numbers = new Set()
+  const re = /(?<![\d.])(\d{1,4})(?![\d.])/g
+  let m
+  while ((m = re.exec(cleaned)) !== null) numbers.add(Number(m[1]))
+  return numbers
+}
+
+function matchesEpisode (title, { episode, absoluteEpisodeNumber }) {
+  const want = new Set()
+  if (episode != null) want.add(Number(episode))
+  if (absoluteEpisodeNumber != null) want.add(Number(absoluteEpisodeNumber))
+  if (!want.size) return true
+  const have = extractEpisodeNumbers(title)
+  for (const n of want) if (have.has(n)) return true
+  return false
+}
+
 function sanitizeTitle (title) {
   return title
     .replace(/[‐-―−]/g, '-')
@@ -134,7 +162,11 @@ async function search (query, options, kind) {
   const q = buildQuery(query, { kind })
   if (!q) return []
   const sort = resolveSort(options)
-  return fetchRss(fetchFn, q, sort)
+  const results = await fetchRss(fetchFn, q, sort)
+  if (kind === 'single' && (query.episode != null || query.absoluteEpisodeNumber != null)) {
+    return results.filter(r => matchesEpisode(r.title, query))
+  }
+  return results
 }
 
 export default {
