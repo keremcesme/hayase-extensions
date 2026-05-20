@@ -32,13 +32,19 @@ function getCoreTitle (rawTitle) {
 
 function extractSeasonHints (text) {
   const hints = new Set()
-  for (const m of String(text).matchAll(/\bS(\d{1,2})(?:E\d{1,3})?\b/ig)) hints.add(Number(m[1]))
-  for (const m of String(text).matchAll(/\bseason\s+(\d{1,2})\b/ig)) hints.add(Number(m[1]))
-  for (const m of String(text).matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/ig)) hints.add(Number(m[1]))
+  const s = String(text)
+  for (const m of s.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/ig)) hints.add(Number(m[1]))
+  for (const m of s.matchAll(/\bS(\d{1,2})(?:E\d{1,3})?(?![\w-])/ig)) hints.add(Number(m[1]))
+  for (const m of s.matchAll(/\bseason\s+(\d{1,2})(?![\d\w-])/ig)) hints.add(Number(m[1]))
   return hints
 }
 
 function inferQuerySeason (titles) {
+  const strong = /\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/i
+  for (const t of titles || []) {
+    const m = String(t).match(strong)
+    if (m) return Number(m[1])
+  }
   for (const t of titles || []) {
     const hints = extractSeasonHints(t)
     if (hints.size) return [...hints][0]

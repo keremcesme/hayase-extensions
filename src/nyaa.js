@@ -116,13 +116,23 @@ function getCoreTitle (rawTitle) {
 
 function extractSeasonHints (text) {
   const hints = new Set()
-  for (const m of String(text).matchAll(/\bS(\d{1,2})(?:E\d{1,3})?\b/ig)) hints.add(Number(m[1]))
-  for (const m of String(text).matchAll(/\bseason\s+(\d{1,2})\b/ig)) hints.add(Number(m[1]))
-  for (const m of String(text).matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/ig)) hints.add(Number(m[1]))
+  const s = String(text)
+  // "4th Season" / "2nd Season" — strongest signal, listed first
+  for (const m of s.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/ig)) hints.add(Number(m[1]))
+  // "S04" / "S04E11" — strong, but reject "S2-nensei" etc.
+  for (const m of s.matchAll(/\bS(\d{1,2})(?:E\d{1,3})?(?![\w-])/ig)) hints.add(Number(m[1]))
+  // "Season 4" — reject "Season 2-nensei" by forbidding hyphen/word after the number
+  for (const m of s.matchAll(/\bseason\s+(\d{1,2})(?![\d\w-])/ig)) hints.add(Number(m[1]))
   return hints
 }
 
 function inferQuerySeason (titles) {
+  // Prefer strong "Nth Season" signal when present anywhere; fall back to other hints.
+  const strong = /\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/i
+  for (const t of titles || []) {
+    const m = String(t).match(strong)
+    if (m) return Number(m[1])
+  }
   for (const t of titles || []) {
     const hints = extractSeasonHints(t)
     if (hints.size) return [...hints][0]

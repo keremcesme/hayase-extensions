@@ -258,25 +258,30 @@ async function testNekoBT () {
   assert.deepEqual(await nekobt.single({ titles: [], fetch: globalThis.fetch }), [])
 }
 
-async function testCoteS4E11 () {
-  section('Classroom of the Elite S4E11 (multi-title + season filter)')
+async function testCoteS4 () {
+  section('Classroom of the Elite S4 — exact AniList titles, eps 9/10/11')
+  // Pulled from AniList id 180745 (COTE 4th Season). The romaji has the
+  // poisoned "4th Season 2-nensei-hen" suffix that previously caused
+  // inferQuerySeason to return 2 instead of 4.
   const titles = [
-    'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e: 2-nensei-hen 2-gakki',
-    'Classroom of the Elite Season 4',
-    'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e'
+    'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 4th Season 2-nensei-hen Ichi Gakki',
+    'Classroom of the Elite 4th Season: Second Year, First Semester',
+    'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e: 2-nensei-hen',
+    'Classroom of the Elite: Year 2',
+    'Classroom of the Elite Season 4'
   ]
-  const q = { titles, episode: 11, resolution: '1080', exclusions: [], fetch: globalThis.fetch }
+  const wrongSeason = /\b(?:[1-3](?:st|nd|rd)\s+season|S0?[1-3](?![\d])|S0?[1-3]E\d|season\s+[1-3](?![\d\w-]))/i
 
-  const forbidSeasonRe = /\b(?:S0?[1-3](?![\d])|S0?[1-3]E\d|[1-3](?:st|nd|rd)\s+season|season\s+[1-3]\b)/i
-
-  for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt], ['SubsPlease', subsplease]]) {
-    const r = await ext.single(q)
-    log(`  ${name}: ${r.length} results`)
-    assert.ok(r.length > 0, `${name} should find S4E11`)
-    for (const x of r) {
-      assertCommon(x)
-      assert.ok(extractNumbersFromTitle(x.title).has(11), `${name}: missing ep 11 in "${x.title}"`)
-      assert.ok(!forbidSeasonRe.test(x.title), `${name}: leaked wrong-season "${x.title}"`)
+  for (const ep of [9, 10, 11]) {
+    for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt], ['SubsPlease', subsplease]]) {
+      const r = await ext.single({ titles, episode: ep, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
+      log(`  ep${ep} ${name}: ${r.length} results`)
+      assert.ok(r.length > 0, `${name} should find S4E${ep}`)
+      for (const x of r) {
+        assertCommon(x)
+        assert.ok(extractNumbersFromTitle(x.title).has(ep), `${name}: missing ep ${ep} in "${x.title}"`)
+        assert.ok(!wrongSeason.test(x.title), `${name}: leaked wrong-season for ep ${ep}: "${x.title}"`)
+      }
     }
   }
 }
@@ -288,7 +293,7 @@ async function run () {
   await testAnimeTosho()
   await testSubsPlease()
   await testNekoBT()
-  await testCoteS4E11()
+  await testCoteS4()
   log('\nall tests passed ✓')
 }
 
