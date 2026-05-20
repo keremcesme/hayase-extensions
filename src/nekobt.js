@@ -62,6 +62,7 @@ function sanitizeTitle (title) {
 
 function extractEpisodeNumbers (title) {
   const cleaned = title
+    .replace(/\{[^{}]*\}/g, '')
     .replace(/\b\d{3,4}p\b/gi, '')
     .replace(/\b(?:19|20)\d{2}\b/g, '')
     .replace(/\bx26[45]\b/gi, '')
@@ -163,7 +164,12 @@ function buildQueryForCore (core, { episode, resolution }, kind) {
   return parts.join(' ').trim()
 }
 
+const SINGLE_EPISODE_RE = /\s-\s\d{1,3}(?:v\d)?(?=\s|$|\.|\[)|\bS\d{1,2}E\d{1,3}\b|\bEpisode\s+\d{1,3}\b/i
+const EPISODE_RANGE_RE = /\b\d{1,3}\s*[-~]\s*\d{1,3}\b/
+
 function looksLikeBatch (title) {
+  if (SINGLE_EPISODE_RE.test(title)) return false
+  if (EPISODE_RANGE_RE.test(title)) return true
   return /\b(?:batch|complete|season|s\d{1,2}(?!\s*e\d)|bd[\s-]?box|cour|collection)\b/i.test(title)
 }
 

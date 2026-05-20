@@ -44,7 +44,7 @@ function sanitizeTitle(title) {
   return String(title || "").replace(/[‐-―−]/g, "-").replace(/[^\w\s-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 function extractEpisodeNumbers(title) {
-  const cleaned = title.replace(/\b\d{3,4}p\b/gi, "").replace(/\b(?:19|20)\d{2}\b/g, "").replace(/\bx26[45]\b/gi, "").replace(/\bh\.?26[45]\b/gi, "").replace(/\b[57]\.1\b/g, "").replace(/\b\d+(?:bit|fps|kbps|ch)\b/gi, "").replace(/\bv\d+\b/gi, "").replace(/\[[A-F0-9]{6,}\]/gi, "").replace(/\([A-F0-9]{6,}\)/gi, "");
+  const cleaned = title.replace(/\{[^{}]*\}/g, "").replace(/\b\d{3,4}p\b/gi, "").replace(/\b(?:19|20)\d{2}\b/g, "").replace(/\bx26[45]\b/gi, "").replace(/\bh\.?26[45]\b/gi, "").replace(/\b[57]\.1\b/g, "").replace(/\b\d+(?:bit|fps|kbps|ch)\b/gi, "").replace(/\bv\d+\b/gi, "").replace(/\[[A-F0-9]{6,}\]/gi, "").replace(/\([A-F0-9]{6,}\)/gi, "");
   const numbers = /* @__PURE__ */ new Set();
   const re = /(?<![\d.])(\d{1,4})(?![\d.])/g;
   let m;
@@ -124,7 +124,11 @@ function buildQueryForCore(core, { episode, resolution }, kind) {
   if (resolution) parts.push(resolution + "p");
   return parts.join(" ").trim();
 }
+var SINGLE_EPISODE_RE = /\s-\s\d{1,3}(?:v\d)?(?=\s|$|\.|\[)|\bS\d{1,2}E\d{1,3}\b|\bEpisode\s+\d{1,3}\b/i;
+var EPISODE_RANGE_RE = /\b\d{1,3}\s*[-~]\s*\d{1,3}\b/;
 function looksLikeBatch(title) {
+  if (SINGLE_EPISODE_RE.test(title)) return false;
+  if (EPISODE_RANGE_RE.test(title)) return true;
   return /\b(?:batch|complete|season|s\d{1,2}(?!\s*e\d)|bd[\s-]?box|cour|collection)\b/i.test(title);
 }
 async function fetchSearch(fetchFn, params) {

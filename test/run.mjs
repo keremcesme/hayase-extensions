@@ -300,6 +300,19 @@ async function testCoteS4 () {
   })
   const wrongSeason = /\b(?:[1-3](?:st|nd|rd)\s+season|S0?[1-3](?![\d])|S0?[1-3]E\d|season\s+[1-3](?![\d\w-]))/i
 
+  // Strip nekoBT {Tags:...} suffix the same way the extension does, so the
+  // assertion looks at the real release name not the tag block.
+  const stripTags = (s) => s.replace(/\{[^{}]*\}/g, '')
+  // The episode marker on the actual release (not buried in a tag suffix).
+  const explicitEp = (s) => {
+    const t = stripTags(s)
+    const m1 = t.match(/\bS\d{1,2}E(\d{1,3})\b/i)
+    if (m1) return Number(m1[1])
+    const m2 = t.match(/\s-\s(\d{1,3})(?=\s|$|\.|\[)/)
+    if (m2) return Number(m2[1])
+    return null
+  }
+
   for (const ep of [9, 10, 11]) {
     for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt], ['SubsPlease', subsplease]]) {
       const r = await ext.single({ titles, episode: ep, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
@@ -307,9 +320,22 @@ async function testCoteS4 () {
       assert.ok(r.length > 0, `${name} should find S4E${ep}`)
       for (const x of r) {
         assertCommon(x)
-        assert.ok(extractNumbersFromTitle(x.title).has(ep), `${name}: missing ep ${ep} in "${x.title}"`)
+        const explicit = explicitEp(x.title)
+        if (explicit != null) {
+          assert.equal(explicit, ep, `${name}: ep mismatch (wanted ${ep}, title says ${explicit}): "${x.title}"`)
+        }
         assert.ok(!wrongSeason.test(x.title), `${name}: leaked wrong-season for ep ${ep}: "${x.title}"`)
       }
+    }
+  }
+
+  // batch() should not return single-episode releases tagged as batch.
+  for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt]]) {
+    const b = await ext.batch({ titles, episode: 9, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
+    log(`  batch ${name}: ${b.length} results`)
+    for (const x of b) {
+      const explicit = explicitEp(x.title)
+      assert.equal(explicit, null, `${name}: batch() returned single-episode release "${x.title}"`)
     }
   }
 }

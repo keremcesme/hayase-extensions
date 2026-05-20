@@ -59,7 +59,7 @@ function parseRss(xml) {
   return items;
 }
 function extractEpisodeNumbers(title) {
-  const cleaned = title.replace(/\b\d{3,4}p\b/gi, "").replace(/\b(?:19|20)\d{2}\b/g, "").replace(/\bx26[45]\b/gi, "").replace(/\bh\.?26[45]\b/gi, "").replace(/\b[57]\.1\b/g, "").replace(/\b\d+(?:bit|fps|kbps|ch)\b/gi, "").replace(/\bv\d+\b/gi, "").replace(/\[[A-F0-9]{6,}\]/gi, "").replace(/\([A-F0-9]{6,}\)/gi, "");
+  const cleaned = title.replace(/\{[^{}]*\}/g, "").replace(/\b\d{3,4}p\b/gi, "").replace(/\b(?:19|20)\d{2}\b/g, "").replace(/\bx26[45]\b/gi, "").replace(/\bh\.?26[45]\b/gi, "").replace(/\b[57]\.1\b/g, "").replace(/\b\d+(?:bit|fps|kbps|ch)\b/gi, "").replace(/\bv\d+\b/gi, "").replace(/\[[A-F0-9]{6,}\]/gi, "").replace(/\([A-F0-9]{6,}\)/gi, "");
   const numbers = /* @__PURE__ */ new Set();
   const re = /(?<![\d.])(\d{1,4})(?![\d.])/g;
   let m;

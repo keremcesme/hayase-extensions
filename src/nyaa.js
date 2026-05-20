@@ -71,6 +71,7 @@ function parseRss (xml) {
 
 function extractEpisodeNumbers (title) {
   const cleaned = title
+    .replace(/\{[^{}]*\}/g, '')
     .replace(/\b\d{3,4}p\b/gi, '')
     .replace(/\b(?:19|20)\d{2}\b/g, '')
     .replace(/\bx26[45]\b/gi, '')
