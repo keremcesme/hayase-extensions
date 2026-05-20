@@ -97,13 +97,16 @@ function hasExcludedText (title, exclusions) {
     .some(e => lower.includes(e))
 }
 
-const SEASON_STRIP_RE = /\b(?:season\s+\d{1,2}|s\d{1,2}|\d{1,2}(?:st|nd|rd|th)\s+season|part\s+\d{1,2})\b/ig
+const SEASON_CHOP_RE = /(\s+\d{1,2}(?:st|nd|rd|th)\s+season\b|\s+S\d{1,2}(?:E\d{1,3})?\b|\s+season\s+\d{1,2}\b|\s+part\s+\d{1,2}\b)/i
 
 function getCoreTitle (rawTitle) {
   let t = String(rawTitle || '')
   const colonIdx = t.indexOf(':')
   if (colonIdx > 4) t = t.slice(0, colonIdx)
-  return t.replace(SEASON_STRIP_RE, '').replace(/\s+/g, ' ').trim()
+  const m = t.match(SEASON_CHOP_RE)
+  if (m) t = t.slice(0, m.index)
+  t = t.replace(/\s+\d{1,2}(?:st|nd|rd|th)\b/gi, '')
+  return t.replace(/\s+/g, ' ').trim()
 }
 
 function extractSeasonHints (text) {
@@ -140,7 +143,7 @@ function uniqueCoreTitles (titles, limit) {
   const out = []
   for (const t of titles || []) {
     const core = getCoreTitle(t)
-    const key = sanitizeTitle(core).toLowerCase()
+    const key = sanitizeTitle(core).toLowerCase().replace(/[\s_-]+/g, '')
     if (!key || tried.has(key)) continue
     tried.add(key)
     out.push(core)
@@ -186,7 +189,7 @@ async function search (query, kind) {
   if (!titles.length) return []
 
   const expectedSeason = inferQuerySeason(titles)
-  const cores = uniqueCoreTitles(titles, 3)
+  const cores = uniqueCoreTitles(titles, 4)
   if (!cores.length) return []
 
   const seen = new Set()

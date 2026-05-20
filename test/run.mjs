@@ -258,18 +258,46 @@ async function testNekoBT () {
   assert.deepEqual(await nekobt.single({ titles: [], fetch: globalThis.fetch }), [])
 }
 
+// Verbatim port of hayase-app/interface src/lib/modules/extensions/extensions.ts createTitles()
+function hayaseCreateTitles (media) {
+  const grouped = [...new Set(Object.values(media.title ?? {}).concat(media.synonyms).filter(n => n != null && n.length > 3))]
+  const titles = []
+  const appendTitle = (t) => {
+    titles.push(t)
+    const m1 = t.match(/(\d)(?:nd|rd|th) Season/i)
+    const m2 = t.match(/Season (\d)/i)
+    if (m2) titles.push(t.replace(/Season \d/i, 'S' + m2[1]))
+    else if (m1) titles.push(t.replace(/(\d)(?:nd|rd|th) Season/i, 'S' + m1[1]))
+  }
+  for (const t of grouped) {
+    appendTitle(t)
+    if (t.includes('-')) appendTitle(t.replaceAll('-', ''))
+  }
+  return titles
+}
+
 async function testCoteS4 () {
-  section('Classroom of the Elite S4 — exact AniList titles, eps 9/10/11')
-  // Pulled from AniList id 180745 (COTE 4th Season). The romaji has the
-  // poisoned "4th Season 2-nensei-hen" suffix that previously caused
-  // inferQuerySeason to return 2 instead of 4.
-  const titles = [
-    'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 4th Season 2-nensei-hen Ichi Gakki',
-    'Classroom of the Elite 4th Season: Second Year, First Semester',
-    'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e: 2-nensei-hen',
-    'Classroom of the Elite: Year 2',
-    'Classroom of the Elite Season 4'
-  ]
+  section('Classroom of the Elite S4 — Hayase-expanded titles, eps 9/10/11')
+  // Reproduces the exact titles Hayase passes for AniList id 180745.
+  // Hayase's createTitles expands the AniList titles with Season N -> SN
+  // and hyphen-removed variants, so the first several entries are all
+  // subtitled romaji ("Youkoso ... 4th Season 2-nensei-hen Ichi Gakki"),
+  // not the broad English "Classroom of the Elite".
+  const titles = hayaseCreateTitles({
+    title: {
+      romaji: 'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 4th Season 2-nensei-hen Ichi Gakki',
+      english: 'Classroom of the Elite 4th Season: Second Year, First Semester',
+      native: 'ようこそ実力至上主義の教室へ 4th Season 2年生編1学期',
+      userPreferred: 'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 4th Season 2-nensei-hen Ichi Gakki'
+    },
+    synonyms: [
+      'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e: 2-nensei-hen',
+      'ようこそ実力至上主義の教室へ ２年生編',
+      'Classroom of the Elite: Year 2',
+      'Classroom of the Elite Season 4',
+      'ようこそ実力至上主義の教室へ 4th Season 2年生1学期'
+    ]
+  })
   const wrongSeason = /\b(?:[1-3](?:st|nd|rd)\s+season|S0?[1-3](?![\d])|S0?[1-3]E\d|season\s+[1-3](?![\d\w-]))/i
 
   for (const ep of [9, 10, 11]) {

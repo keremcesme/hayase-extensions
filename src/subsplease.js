@@ -21,13 +21,16 @@ function normalizeSearchTerm (title) {
     .trim()
 }
 
-const SEASON_STRIP_RE = /\b(?:season\s+\d{1,2}|s\d{1,2}|\d{1,2}(?:st|nd|rd|th)\s+season|part\s+\d{1,2})\b/ig
+const SEASON_CHOP_RE = /(\s+\d{1,2}(?:st|nd|rd|th)\s+season\b|\s+S\d{1,2}(?:E\d{1,3})?\b|\s+season\s+\d{1,2}\b|\s+part\s+\d{1,2}\b)/i
 
 function getCoreTitle (rawTitle) {
   let t = String(rawTitle || '')
   const colonIdx = t.indexOf(':')
   if (colonIdx > 4) t = t.slice(0, colonIdx)
-  return t.replace(SEASON_STRIP_RE, '').replace(/\s+/g, ' ').trim()
+  const m = t.match(SEASON_CHOP_RE)
+  if (m) t = t.slice(0, m.index)
+  t = t.replace(/\s+\d{1,2}(?:st|nd|rd|th)\b/gi, '')
+  return t.replace(/\s+/g, ' ').trim()
 }
 
 function extractSeasonHints (text) {
@@ -169,11 +172,11 @@ async function search (query) {
   for (const t of rawTitles) {
     const core = getCoreTitle(t)
     const term = normalizeSearchTerm(core)
-    const key = term.toLowerCase()
+    const key = term.toLowerCase().replace(/[\s_-]+/g, '')
     if (!term || tried.has(key)) continue
     tried.add(key)
     searchTerms.push(term)
-    if (searchTerms.length >= 4) break
+    if (searchTerms.length >= 5) break
   }
 
   for (const term of searchTerms) {
