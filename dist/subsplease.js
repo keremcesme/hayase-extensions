@@ -143,6 +143,7 @@ async function search(query) {
   for (const t of rawTitles) {
     const core = getCoreTitle(t);
     const term = normalizeSearchTerm(core);
+    if (!/[a-z]/i.test(term)) continue;
     const key = term.toLowerCase().replace(/[\s_-]+/g, "");
     if (!term || tried.has(key)) continue;
     tried.add(key);

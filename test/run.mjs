@@ -407,6 +407,14 @@ async function testOverlordIIIThaiSynonymLeak () {
       assert.match(x.title, /overlord/i, `${name}: non-Overlord batch leaked: "${x.title}"`)
     }
   }
+
+  // SubsPlease's API does fuzzy matching that returns "Gintama - 3-nen
+  // Z-gumi Ginpachi-sensei" when sent the Thai synonym (which contains "3").
+  const sp = await subsplease.single({ titles, episode: 9, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
+  log(`  SubsPlease single: ${sp.length} results`)
+  for (const x of sp) {
+    assert.match(x.title, /overlord/i, `SubsPlease: non-Overlord result leaked: "${x.title}"`)
+  }
 }
 
 async function run () {

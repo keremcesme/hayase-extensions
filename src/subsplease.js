@@ -172,6 +172,10 @@ async function search (query) {
   for (const t of rawTitles) {
     const core = getCoreTitle(t)
     const term = normalizeSearchTerm(core)
+    // Skip terms with no ASCII letters — a non-Latin synonym like
+    // "โอเวอร์ลอร์ด ภาค 3" makes SubsPlease's API fuzzy-match against the "3"
+    // and return unrelated shows (e.g. "Gintama - 3-nen Z-gumi Ginpachi-sensei").
+    if (!/[a-z]/i.test(term)) continue
     const key = term.toLowerCase().replace(/[\s_-]+/g, '')
     if (!term || tried.has(key)) continue
     tried.add(key)
