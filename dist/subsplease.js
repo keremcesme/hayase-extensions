@@ -25,6 +25,12 @@ function getCoreTitle(rawTitle) {
   t = t.replace(/\s+\d{1,2}(?:st|nd|rd|th)\b/gi, "");
   return t.replace(/\s+/g, " ").trim();
 }
+function hasUsableLatinCore(core, term) {
+  const ascii = (term.match(/[a-z]/gi) || []).length;
+  if (!ascii) return false;
+  const letters = (String(core).match(/\p{L}/gu) || []).length;
+  return ascii * 2 >= letters;
+}
 function extractSeasonHints(text) {
   const hints = /* @__PURE__ */ new Set();
   const s = String(text);
@@ -143,7 +149,7 @@ async function search(query) {
   for (const t of rawTitles) {
     const core = getCoreTitle(t);
     const term = normalizeSearchTerm(core);
-    if (!/[a-z]/i.test(term)) continue;
+    if (!hasUsableLatinCore(core, term)) continue;
     const key = term.toLowerCase().replace(/[\s_-]+/g, "");
     if (!term || tried.has(key)) continue;
     tried.add(key);

@@ -114,13 +114,19 @@ function matchesSeason(resultTitle, expectedSeason) {
   if (!hints.size) return expectedSeason === 1;
   return hints.has(expectedSeason);
 }
+function hasUsableLatinCore(core, sanitized) {
+  const ascii = (sanitized.match(/[a-z]/gi) || []).length;
+  if (!ascii) return false;
+  const letters = (String(core).match(/\p{L}/gu) || []).length;
+  return ascii * 2 >= letters;
+}
 function uniqueCoreTitles(titles, limit) {
   const tried = /* @__PURE__ */ new Set();
   const out = [];
   for (const t of titles || []) {
     const core = getCoreTitle(t);
     const sanitized = sanitizeTitle(core);
-    if (!/[a-z]/i.test(sanitized)) continue;
+    if (!hasUsableLatinCore(core, sanitized)) continue;
     const key = sanitized.toLowerCase().replace(/[\s_-]+/g, "");
     if (!key || tried.has(key)) continue;
     tried.add(key);

@@ -417,6 +417,40 @@ async function testOverlordIIIThaiSynonymLeak () {
   }
 }
 
+async function testRezeroS4NonLatinSynonymLeak () {
+  section('Re:ZERO S4 — non-Latin native/synonyms must not leak unrelated shows')
+  // AniList id 189046. The native title "Re:ゼロから始める異世界生活" sanitizes to
+  // just "Re" (CJK stripped), and the Thai/Russian synonyms leave "Re ZERO".
+  // The old guard only dropped cores with *zero* ASCII letters, so "Re" slipped
+  // through and queried nyaa for "Re batch 1080p" — which fuzzy-matched
+  // "Rent-A-Girlfriend ... (Batch)". Every returned result must be Re:Zero.
+  const titles = hayaseCreateTitles({
+    title: {
+      romaji: 'Re:Zero kara Hajimeru Isekai Seikatsu 4th Season',
+      english: 'Re:ZERO -Starting Life in Another World- Season 4',
+      native: 'Re:ゼロから始める異世界生活 4th season',
+      userPreferred: 'Re:Zero kara Hajimeru Isekai Seikatsu 4th Season'
+    },
+    synonyms: [
+      'Re:ZERO รีเซทชีวิต ฝ่าวิกฤตต่างโลก ซีซั่น 4',
+      'Re:ZERO – Жизнь с нуля в альтернативном мире 4'
+    ]
+  })
+  const unrelated = /kanojo|okarishimasu|girlfriend/i
+  for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt]]) {
+    const s = await ext.single({ titles, episode: 8, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
+    log(`  ${name} single(ep8): ${s.length} results`)
+    for (const x of s) assert.ok(!unrelated.test(x.title), `${name}: leaked unrelated show on single: "${x.title}"`)
+    const b = await ext.batch({ titles, episode: 8, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
+    log(`  ${name} batch: ${b.length} results`)
+    for (const x of b) assert.ok(!unrelated.test(x.title), `${name}: leaked unrelated show on batch: "${x.title}"`)
+  }
+
+  const sp = await subsplease.single({ titles, episode: 8, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
+  log(`  SubsPlease single(ep8): ${sp.length} results`)
+  for (const x of sp) assert.ok(!unrelated.test(x.title), `SubsPlease: leaked unrelated show: "${x.title}"`)
+}
+
 async function run () {
   unitFilterChecks()
   await testNyaa()
@@ -427,6 +461,7 @@ async function run () {
   await testCoteS4()
   await testFrierenS1NoS2Leaks()
   await testOverlordIIIThaiSynonymLeak()
+  await testRezeroS4NonLatinSynonymLeak()
   log('\nall tests passed ✓')
 }
 

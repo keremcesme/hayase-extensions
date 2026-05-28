@@ -33,6 +33,13 @@ function getCoreTitle (rawTitle) {
   return t.replace(/\s+/g, ' ').trim()
 }
 
+function hasUsableLatinCore (core, term) {
+  const ascii = (term.match(/[a-z]/gi) || []).length
+  if (!ascii) return false
+  const letters = (String(core).match(/\p{L}/gu) || []).length
+  return ascii * 2 >= letters
+}
+
 function extractSeasonHints (text) {
   const hints = new Set()
   const s = String(text)
@@ -172,10 +179,12 @@ async function search (query) {
   for (const t of rawTitles) {
     const core = getCoreTitle(t)
     const term = normalizeSearchTerm(core)
-    // Skip terms with no ASCII letters — a non-Latin synonym like
-    // "โอเวอร์ลอร์ด ภาค 3" makes SubsPlease's API fuzzy-match against the "3"
-    // and return unrelated shows (e.g. "Gintama - 3-nen Z-gumi Ginpachi-sensei").
-    if (!/[a-z]/i.test(term)) continue
+    // Skip terms that are mostly non-Latin script — a synonym like
+    // "โอเวอร์ลอร์ด ภาค 3" or the native "Re:ゼロから始める異世界生活" makes
+    // SubsPlease's API fuzzy-match against the leftover "3"/"Re" and return
+    // unrelated shows. Trust the romanized remnant only when its Latin letters
+    // aren't outnumbered by the non-Latin letters they came from.
+    if (!hasUsableLatinCore(core, term)) continue
     const key = term.toLowerCase().replace(/[\s_-]+/g, '')
     if (!term || tried.has(key)) continue
     tried.add(key)

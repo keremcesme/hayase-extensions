@@ -152,16 +152,27 @@ function matchesSeason (resultTitle, expectedSeason) {
   return hints.has(expectedSeason)
 }
 
+// A title written mostly in a non-Latin script (CJK, Thai, Cyrillic, ...) leaves
+// only an incidental Latin fragment after sanitizing: the native
+// "Re:ゼロから始める異世界生活" collapses to "Re", and "โอเวอร์ลอร์ด ภาค 3" to "3".
+// Searching nyaa for "Re batch 1080p" or "3 09 1080p" then fuzzy-matches
+// unrelated torrents (e.g. Rent-A-Girlfriend). Trust the romanized remnant only
+// when its Latin letters aren't outnumbered by the non-Latin letters they came
+// from — the romaji/English titles already cover the searchable name.
+function hasUsableLatinCore (core, sanitized) {
+  const ascii = (sanitized.match(/[a-z]/gi) || []).length
+  if (!ascii) return false
+  const letters = (String(core).match(/\p{L}/gu) || []).length
+  return ascii * 2 >= letters
+}
+
 function uniqueCoreTitles (titles, limit) {
   const tried = new Set()
   const out = []
   for (const t of titles || []) {
     const core = getCoreTitle(t)
     const sanitized = sanitizeTitle(core)
-    // Drop cores whose sanitized form has no ASCII letters — e.g. a Thai or
-    // Arabic synonym like "โอเวอร์ลอร์ด ภาค 3" collapses to just "3", which
-    // would search nyaa for "3 09 1080p" and return any recent ep 9 torrent.
-    if (!/[a-z]/i.test(sanitized)) continue
+    if (!hasUsableLatinCore(core, sanitized)) continue
     const key = sanitized.toLowerCase().replace(/[\s_-]+/g, '')
     if (!key || tried.has(key)) continue
     tried.add(key)
