@@ -139,6 +139,33 @@ function looksLikeBatch(title) {
   if (EPISODE_RANGE_RE.test(title)) return true;
   return /\b(?:batch|complete|season|s\d{1,2}(?!\s*e\d)|bd[\s-]?box|cour|collection)\b/i.test(title);
 }
+var MOVIE_HINT_RE = /\b(?:movie|gekijou?ban|gekijou|eiga|film)\b/i;
+var MOVIE_STOPWORDS = /* @__PURE__ */ new Set(["the", "movie", "film", "gekijouban", "gekijoban", "gekijou", "ban", "eiga"]);
+function titleTokens(s) {
+  return sanitizeTitle(String(s)).toLowerCase().split(" ").filter(Boolean);
+}
+function subtitleTokenSets(titles) {
+  const sets = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const t of titles || []) {
+    const core = new Set(titleTokens(getCoreTitle(t)));
+    const extra = titleTokens(t).filter((w) => w.length > 1 && !core.has(w) && !MOVIE_STOPWORDS.has(w));
+    if (!extra.length) continue;
+    const key = extra.slice().sort().join(" ");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sets.push(new Set(extra));
+  }
+  return sets;
+}
+function isMovieResult(title, subtitleSets) {
+  if (subtitleSets.length) {
+    const tokens = new Set(titleTokens(title));
+    return subtitleSets.some((set) => [...set].every((tok) => tokens.has(tok)));
+  }
+  if (MOVIE_HINT_RE.test(title)) return true;
+  return !SINGLE_EPISODE_RE.test(title) && !EPISODE_RANGE_RE.test(title);
+}
 async function fetchSearch(fetchFn, params) {
   const url = `${BASE}?${params.toString()}`;
   let res;
@@ -192,6 +219,10 @@ async function search(query, kind) {
   }
   if (kind === "batch") {
     filtered = filtered.filter((r) => looksLikeBatch(r.title)).filter((r) => matchesSeason(r.title, expectedSeason)).map((r) => ({ ...r, type: "batch" }));
+  }
+  if (kind === "movie") {
+    const subtitleSets = subtitleTokenSets(titles);
+    filtered = filtered.filter((r) => matchesSeason(r.title, expectedSeason)).filter((r) => isMovieResult(r.title, subtitleSets));
   }
   if (Array.isArray(query.exclusions) && query.exclusions.length) {
     filtered = filtered.filter((r) => !hasExcludedText(r.title, query.exclusions));

@@ -191,6 +191,51 @@ function looksLikeBatch (title) {
   return /\b(?:batch|complete|season|s\d{1,2}(?!\s*e\d)|bd[\s-]?box|cour|collection)\b/i.test(title)
 }
 
+const MOVIE_HINT_RE = /\b(?:movie|gekijou?ban|gekijou|eiga|film)\b/i
+const MOVIE_STOPWORDS = new Set(['the', 'movie', 'film', 'gekijouban', 'gekijoban', 'gekijou', 'ban', 'eiga'])
+
+function titleTokens (s) {
+  return sanitizeTitle(String(s)).toLowerCase().split(' ').filter(Boolean)
+}
+
+// The movie's distinctive subtitle: tokens of a requested title beyond its
+// franchise core. "Sword Art Online: Ordinal Scale" -> {ordinal, scale}; a
+// bare-franchise synonym ("Sword Art Online") or a single-part title
+// ("A Silent Voice") contributes nothing. Each title's extra tokens form one
+// set; a result need only match one set, so romaji and English subtitles
+// ("Mugen Ressha-hen" vs "Mugen Train") both work.
+function subtitleTokenSets (titles) {
+  const sets = []
+  const seen = new Set()
+  for (const t of titles || []) {
+    const core = new Set(titleTokens(getCoreTitle(t)))
+    const extra = titleTokens(t).filter(w => w.length > 1 && !core.has(w) && !MOVIE_STOPWORDS.has(w))
+    if (!extra.length) continue
+    const key = extra.slice().sort().join(' ')
+    if (seen.has(key)) continue
+    seen.add(key)
+    sets.push(new Set(extra))
+  }
+  return sets
+}
+
+// A movie query collapses to a broad core title ("Sword Art Online: Ordinal
+// Scale" -> "Sword Art Online"), so the provider's fuzzy search returns the
+// whole franchise — TV seasons, single episodes, sibling films. When the title
+// carries a distinctive subtitle, require the result to contain it: that alone
+// separates the film from same-franchise TV ("Sword Art Online II", "Gun Gale
+// Online") and other movies ("Progressive"). Without a subtitle to key on, fall
+// back to keeping declared movies and rejecting TV-shaped releases (numbered
+// single episodes / episode ranges).
+function isMovieResult (title, subtitleSets) {
+  if (subtitleSets.length) {
+    const tokens = new Set(titleTokens(title))
+    return subtitleSets.some(set => [...set].every(tok => tokens.has(tok)))
+  }
+  if (MOVIE_HINT_RE.test(title)) return true
+  return !SINGLE_EPISODE_RE.test(title) && !EPISODE_RANGE_RE.test(title)
+}
+
 function buildQueryForCore (core, { episode, resolution, exclusions }, kind) {
   const parts = []
   const t = sanitizeTitle(core)
@@ -270,13 +315,17 @@ async function search (query, options, kind) {
   if (kind === 'single' && (query.episode != null || query.absoluteEpisodeNumber != null)) {
     filtered = filtered.filter(r => matchesEpisode(r.title, query))
   }
-  if (kind === 'single' || kind === 'batch') {
+  if (kind === 'single' || kind === 'batch' || kind === 'movie') {
     filtered = filtered.filter(r => matchesSeason(r.title, expectedSeason))
   }
   if (kind === 'batch') {
     filtered = filtered
       .filter(r => looksLikeBatch(r.title))
       .map(r => ({ ...r, type: 'batch' }))
+  }
+  if (kind === 'movie') {
+    const subtitleSets = subtitleTokenSets(titles)
+    filtered = filtered.filter(r => isMovieResult(r.title, subtitleSets))
   }
   return filtered
 }

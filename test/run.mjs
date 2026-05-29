@@ -451,6 +451,44 @@ async function testRezeroS4NonLatinSynonymLeak () {
   for (const x of sp) assert.ok(!unrelated.test(x.title), `SubsPlease: leaked unrelated show: "${x.title}"`)
 }
 
+async function testSaoOrdinalScaleMovieNoTvLeak () {
+  section('SAO Ordinal Scale (movie) — must not leak TV seasons/episodes')
+  // Reproduces the user's screenshot: searching the movie surfaced "Sword Art
+  // Online - 01 ~ 25", "Gun Gale Online - 01 ~ 12" and "Sword Art Online II
+  // 01-24". A synonym like "Sword Art Online: Ordinal Scale" collapses to the
+  // core "Sword Art Online", so the provider fuzzy-matches the whole franchise.
+  const titles = hayaseCreateTitles({
+    title: {
+      romaji: 'Gekijouban Sword Art Online: Ordinal Scale',
+      english: 'Sword Art Online The Movie -Ordinal Scale-',
+      native: '劇場版 ソードアート・オンライン -オーディナル・スケール-',
+      userPreferred: 'Sword Art Online The Movie -Ordinal Scale-'
+    },
+    synonyms: [
+      'Sword Art Online: Ordinal Scale',
+      'Sword Art Online Movie',
+      'SAO: Ordinal Scale'
+    ]
+  })
+
+  // The query carries a distinctive subtitle ("Ordinal Scale"), so every result
+  // must contain it. That excludes same-franchise TV ("Sword Art Online II",
+  // "Gun Gale Online", S1 episodes, Alicization) and sibling films
+  // ("Progressive") — the exact leaks from the user's screenshot.
+  const isOrdinalScale = t => /\bordinal\b/i.test(t) && /\bscale\b/i.test(t)
+  let nyaaCount = 0
+  for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt]]) {
+    const r = await ext.movie({ titles, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
+    log(`  ${name} movie(): ${r.length} results`)
+    if (name === 'Nyaa') nyaaCount = r.length
+    for (const x of r) {
+      assertCommon(x)
+      assert.ok(isOrdinalScale(x.title), `${name}: movie() leaked a non-Ordinal-Scale release: "${x.title}"`)
+    }
+  }
+  assert.ok(nyaaCount > 0, 'Nyaa movie() should still surface Ordinal Scale releases')
+}
+
 async function run () {
   unitFilterChecks()
   await testNyaa()
@@ -462,6 +500,7 @@ async function run () {
   await testFrierenS1NoS2Leaks()
   await testOverlordIIIThaiSynonymLeak()
   await testRezeroS4NonLatinSynonymLeak()
+  await testSaoOrdinalScaleMovieNoTvLeak()
   log('\nall tests passed ✓')
 }
 

@@ -142,6 +142,33 @@ function looksLikeBatch(title) {
   if (EPISODE_RANGE_RE.test(title)) return true;
   return /\b(?:batch|complete|season|s\d{1,2}(?!\s*e\d)|bd[\s-]?box|cour|collection)\b/i.test(title);
 }
+var MOVIE_HINT_RE = /\b(?:movie|gekijou?ban|gekijou|eiga|film)\b/i;
+var MOVIE_STOPWORDS = /* @__PURE__ */ new Set(["the", "movie", "film", "gekijouban", "gekijoban", "gekijou", "ban", "eiga"]);
+function titleTokens(s) {
+  return sanitizeTitle(String(s)).toLowerCase().split(" ").filter(Boolean);
+}
+function subtitleTokenSets(titles) {
+  const sets = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const t of titles || []) {
+    const core = new Set(titleTokens(getCoreTitle(t)));
+    const extra = titleTokens(t).filter((w) => w.length > 1 && !core.has(w) && !MOVIE_STOPWORDS.has(w));
+    if (!extra.length) continue;
+    const key = extra.slice().sort().join(" ");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sets.push(new Set(extra));
+  }
+  return sets;
+}
+function isMovieResult(title, subtitleSets) {
+  if (subtitleSets.length) {
+    const tokens = new Set(titleTokens(title));
+    return subtitleSets.some((set) => [...set].every((tok) => tokens.has(tok)));
+  }
+  if (MOVIE_HINT_RE.test(title)) return true;
+  return !SINGLE_EPISODE_RE.test(title) && !EPISODE_RANGE_RE.test(title);
+}
 function buildQueryForCore(core, { episode, resolution, exclusions }, kind) {
   const parts = [];
   const t = sanitizeTitle(core);
@@ -215,11 +242,15 @@ async function search(query, options, kind) {
   if (kind === "single" && (query.episode != null || query.absoluteEpisodeNumber != null)) {
     filtered = filtered.filter((r) => matchesEpisode(r.title, query));
   }
-  if (kind === "single" || kind === "batch") {
+  if (kind === "single" || kind === "batch" || kind === "movie") {
     filtered = filtered.filter((r) => matchesSeason(r.title, expectedSeason));
   }
   if (kind === "batch") {
     filtered = filtered.filter((r) => looksLikeBatch(r.title)).map((r) => ({ ...r, type: "batch" }));
+  }
+  if (kind === "movie") {
+    const subtitleSets = subtitleTokenSets(titles);
+    filtered = filtered.filter((r) => isMovieResult(r.title, subtitleSets));
   }
   return filtered;
 }
