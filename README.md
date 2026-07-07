@@ -7,7 +7,7 @@ A collection of extensions for [Hayase](https://hayase.watch).
 In Hayase, open **Settings → Extensions → Add Extension** and paste the manifest URL:
 
 ```
-https://raw.githubusercontent.com/resirch/hayase-extensions/main/index.json
+https://raw.githubusercontent.com/keremcesme/hayase-extensions/main/index.json
 ```
 
 All extensions in this manifest are added at once. Toggle individual ones from the extensions list.
