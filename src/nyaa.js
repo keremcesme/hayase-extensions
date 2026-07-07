@@ -1,5 +1,5 @@
 const BASE = 'https://nyaa.si'
-const CATEGORY = '1_2'
+const CATEGORY = '1_4'
 const FILTER = '0'
 
 const SIZE_UNITS = {
@@ -50,7 +50,7 @@ function parseRss (xml) {
     const pubDate = pickTag(block, 'pubDate')
     const seeders = parseInt(pickTag(block, 'nyaa:seeders') || '0', 10)
     const leechers = parseInt(pickTag(block, 'nyaa:leechers') || '0', 10)
-    const downloads = parseInt(pickTag(block, 'nyaa:downloads') || '0', 10)
+    const downloads = parseInt(pickTag(block, 'nyaa:downloads) || '0', 10)
     const hash = pickTag(block, 'nyaa:infoHash').toLowerCase()
     const size = parseSize(pickTag(block, 'nyaa:size'))
     if (!hash || !title) continue
@@ -63,7 +63,7 @@ function parseRss (xml) {
       downloads: Number.isFinite(downloads) ? downloads : 0,
       size,
       date: pubDate ? new Date(pubDate) : new Date(0),
-      accuracy: 'medium'
+      accuracy: 'high'
     })
   }
   return items
@@ -114,7 +114,6 @@ function getCoreTitle (rawTitle) {
   if (colonIdx > 4) t = t.slice(0, colonIdx)
   const m = t.match(SEASON_CHOP_RE)
   if (m) t = t.slice(0, m.index)
-  // Drop dangling Nth ordinal (e.g. "Show 4th" after season text was chopped)
   t = t.replace(/\s+\d{1,2}(?:st|nd|rd|th)\b/gi, '')
   return t.replace(/\s+/g, ' ').trim()
 }
@@ -122,17 +121,13 @@ function getCoreTitle (rawTitle) {
 function extractSeasonHints (text) {
   const hints = new Set()
   const s = String(text)
-  // "4th Season" / "2nd Season" — strongest signal, listed first
   for (const m of s.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/ig)) hints.add(Number(m[1]))
-  // "S04" / "S04E11" — strong, but reject "S2-nensei" etc.
   for (const m of s.matchAll(/\bS(\d{1,2})(?:E\d{1,3})?(?![\w-])/ig)) hints.add(Number(m[1]))
-  // "Season 4" — reject "Season 2-nensei" by forbidding hyphen/word after the number
   for (const m of s.matchAll(/\bseason\s+(\d{1,2})(?![\d\w-])/ig)) hints.add(Number(m[1]))
   return hints
 }
 
 function inferQuerySeason (titles) {
-  // Prefer strong "Nth Season" signal when present anywhere; fall back to other hints.
   const strong = /\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/i
   for (const t of titles || []) {
     const m = String(t).match(strong)
@@ -152,13 +147,6 @@ function matchesSeason (resultTitle, expectedSeason) {
   return hints.has(expectedSeason)
 }
 
-// A title written mostly in a non-Latin script (CJK, Thai, Cyrillic, ...) leaves
-// only an incidental Latin fragment after sanitizing: the native
-// "Re:ゼロから始める異世界生活" collapses to "Re", and "โอเวอร์ลอร์ด ภาค 3" to "3".
-// Searching nyaa for "Re batch 1080p" or "3 09 1080p" then fuzzy-matches
-// unrelated torrents (e.g. Rent-A-Girlfriend). Trust the romanized remnant only
-// when its Latin letters aren't outnumbered by the non-Latin letters they came
-// from — the romaji/English titles already cover the searchable name.
 function hasUsableLatinCore (core, sanitized) {
   const ascii = (sanitized.match(/[a-z]/gi) || []).length
   if (!ascii) return false
@@ -198,12 +186,6 @@ function titleTokens (s) {
   return sanitizeTitle(String(s)).toLowerCase().split(' ').filter(Boolean)
 }
 
-// The movie's distinctive subtitle: tokens of a requested title beyond its
-// franchise core. "Sword Art Online: Ordinal Scale" -> {ordinal, scale}; a
-// bare-franchise synonym ("Sword Art Online") or a single-part title
-// ("A Silent Voice") contributes nothing. Each title's extra tokens form one
-// set; a result need only match one set, so romaji and English subtitles
-// ("Mugen Ressha-hen" vs "Mugen Train") both work.
 function subtitleTokenSets (titles) {
   const sets = []
   const seen = new Set()
@@ -219,14 +201,6 @@ function subtitleTokenSets (titles) {
   return sets
 }
 
-// A movie query collapses to a broad core title ("Sword Art Online: Ordinal
-// Scale" -> "Sword Art Online"), so the provider's fuzzy search returns the
-// whole franchise — TV seasons, single episodes, sibling films. When the title
-// carries a distinctive subtitle, require the result to contain it: that alone
-// separates the film from same-franchise TV ("Sword Art Online II", "Gun Gale
-// Online") and other movies ("Progressive"). Without a subtitle to key on, fall
-// back to keeping declared movies and rejecting TV-shaped releases (numbered
-// single episodes / episode ranges).
 function isMovieResult (title, subtitleSets) {
   if (subtitleSets.length) {
     const tokens = new Set(titleTokens(title))
@@ -236,11 +210,6 @@ function isMovieResult (title, subtitleSets) {
   return !SINGLE_EPISODE_RE.test(title) && !EPISODE_RANGE_RE.test(title)
 }
 
-// Hayase classifies a film as a single-episode (episodes === 1) movie, so it
-// only ever calls single() for it — movie() never runs. Detect that here from
-// the AniList media so single() can apply the movie filter instead of matching
-// any franchise torrent that merely contains episode 1 (e.g. a "01 ~ 25" pack).
-// Mirrors isMovie() in hayase-app/interface anilist/util.ts.
 function isMovieQuery (query) {
   const media = query?.media
   if (!media) return false
@@ -248,6 +217,17 @@ function isMovieQuery (query) {
   const names = [...Object.values(media.title ?? {}), ...(media.synonyms ?? [])]
   if (names.some(t => typeof t === 'string' && t.toLowerCase().includes('movie'))) return true
   return (media.duration ?? 0) > 80 && media.episodes === 1
+}
+
+function isTurkish (title) {
+  const lower = title.toLowerCase()
+  return (
+    lower.includes('[tr]') ||
+    lower.includes('(tr)') ||
+    lower.includes('turkish') ||
+    lower.includes('turkce') ||
+    lower.includes('türkçe')
+  )
 }
 
 function buildQueryForCore (core, { episode, resolution, exclusions }, kind) {
@@ -297,13 +277,11 @@ function resolveSort (options) {
   return options?.sortByDate ? 'id' : 'seeders'
 }
 
-async function search (query, options, kind) {
+async function search(query, options, kind) {
   const fetchFn = query?.fetch ?? globalThis.fetch
   const titles = query?.titles || []
   if (!titles.length) return []
 
-  // Hayase calls single() (not movie()) for episodes===1 films, so treat a
-  // movie query as a movie search regardless of the requested episode.
   if (kind === 'single' && isMovieQuery(query)) kind = 'movie'
 
   const expectedSeason = inferQuerySeason(titles)
@@ -324,6 +302,7 @@ async function search (query, options, kind) {
     }
     for (const r of results) {
       if (!r.hash || seen.has(r.hash)) continue
+      if (!isTurkish(r.title)) continue
       seen.add(r.hash)
       merged.push(r)
     }
