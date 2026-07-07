@@ -143,7 +143,7 @@ function inferQuerySeason (titles) {
 function matchesSeason (resultTitle, expectedSeason) {
   const hints = extractSeasonHints(resultTitle)
   if (expectedSeason == null) return !hints.size || hints.has(1)
-  if (!hints.size) return expectedSeason === 1;
+  if (!hints.size) return expectedSeason === 1
   return hints.has(expectedSeason)
 }
 
@@ -226,7 +226,14 @@ function isTurkish (title) {
     lower.includes('(tr)') ||
     lower.includes('turkish') ||
     lower.includes('turkce') ||
-    lower.includes('türkçe')
+    lower.includes('türkçe') ||
+    lower.includes('animetr') ||
+    lower.includes('taff') ||
+    lower.includes('tempest') ||
+    lower.includes('mavisub') ||
+    lower.includes('alonely') ||
+    lower.includes('souta') ||
+    lower.includes('pijamasub')
   )
 }
 
@@ -327,7 +334,7 @@ async function search(query, options, kind) {
   return filtered
 }
 
-var nyaatr_default = {
+export default {
   async test () {
     const fetchFn = globalThis.fetch
     const params = new URLSearchParams({ page: 'rss', q: 'test', c: CATEGORY, f: FILTER })
@@ -340,8 +347,4 @@ var nyaatr_default = {
   single (query, options) { return search(query, options, 'single') },
   batch (query, options) { return search(query, options, 'batch') },
   movie (query, options) { return search(query, options, 'movie') }
-}
-
-export {
-  nyaatr_default as default
 }
