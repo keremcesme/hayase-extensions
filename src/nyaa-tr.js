@@ -50,7 +50,7 @@ function parseRss (xml) {
     const pubDate = pickTag(block, 'pubDate')
     const seeders = parseInt(pickTag(block, 'nyaa:seeders') || '0', 10)
     const leechers = parseInt(pickTag(block, 'nyaa:leechers') || '0', 10)
-    const downloads = parseInt(pickTag(block, 'nyaa:downloads) || '0', 10)
+    const downloads = parseInt(pickTag(block, 'nyaa:downloads') || '0', 10)
     const hash = pickTag(block, 'nyaa:infoHash').toLowerCase()
     const size = parseSize(pickTag(block, 'nyaa:size'))
     if (!hash || !title) continue
@@ -226,7 +226,14 @@ function isTurkish (title) {
     lower.includes('(tr)') ||
     lower.includes('turkish') ||
     lower.includes('turkce') ||
-    lower.includes('türkçe')
+    lower.includes('türkçe') ||
+    lower.includes('animetr') ||
+    lower.includes('taff') ||
+    lower.includes('tempest') ||
+    lower.includes('mavisub') ||
+    lower.includes('alonely') ||
+    lower.includes('souta') ||
+    lower.includes('pijamasub')
   )
 }
 
