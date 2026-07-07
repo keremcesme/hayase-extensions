@@ -4,6 +4,7 @@ import seadex from '../dist/seadex.js'
 import animetosho from '../dist/animetosho.js'
 import nekobt from '../dist/nekobt.js'
 import subsplease from '../dist/subsplease.js'
+import nyaatr from '../dist/nyaa-tr.js'
 
 const log = (...a) => console.log('[test]', ...a)
 const section = name => log(`\n── ${name} ──`)
@@ -92,13 +93,13 @@ async function testNyaa () {
     exclusions: [],
     fetch: globalThis.fetch
   })
-  log(`    → ${slime.length} results`)
+  log(`     → ${slime.length} results`)
   for (const r of slime) {
     const nums = extractNumbersFromTitle(r.title)
     const ok = nums.has(6) || nums.has(78)
     assert.ok(ok, `slime result must match ep 6 or abs 78, got "${r.title}" with numbers ${[...nums]}`)
   }
-  log('    every slime result matches 6 or 78')
+  log('     every slime result matches 6 or 78')
 
   const filtered = await nyaa.single({
     titles: ['Spy x Family'], episode: 1, resolution: '1080', exclusions: ['x265'], fetch: globalThis.fetch
@@ -119,13 +120,30 @@ async function testNyaa () {
   if (movie[0]) assertCommon(movie[0])
 }
 
+async function testNyaaTR () {
+  section('Nyaa TR (Turkish Filtered)')
+  assert.equal(await nyaatr.test(), true)
+  log('  test() OK')
+
+  const single = await nyaatr.single({
+    titles: ['Jujutsu Kaisen'], episode: 1, resolution: '1080', exclusions: [], fetch: globalThis.fetch
+  })
+  log(`  single() → ${single.length} results`)
+  if (single.length > 0) {
+    single.slice(0, 2).forEach(r => assertCommon(r))
+    for (const r of single) {
+      const isTr = /tr|turkish|türkçe|turkce/i.test(r.title)
+      assert.ok(isTr, `every single() TR result must contain a Turkish marker, got "${r.title}"`)
+    }
+    log('  single() successfully targeted and verified turkish-only context')
+  }
+}
+
 async function testSeadex () {
   section('SeaDex')
   assert.equal(await seadex.test(), true)
   log('  test() OK')
 
-  // anilistId 21 = One Piece (long-running, always has a seadex entry)
-  // anilistId 154587 = Frieren
   const single = await seadex.single({
     anilistId: 154587, titles: ['Frieren'], episodeCount: 28, fetch: globalThis.fetch
   })
@@ -139,14 +157,12 @@ async function testSeadex () {
   const best = single.filter(r => r.type === 'best')
   log(`  → ${best.length} marked 'best'`)
 
-  // missing anilistId should throw a user-friendly error
   await assert.rejects(
     () => seadex.single({ titles: ['x'], fetch: globalThis.fetch }),
     /AniList ID/i
   )
   log('  missing anilistId throws user-friendly error ✓')
 
-  // unknown anilistId returns empty
   const empty = await seadex.single({
     anilistId: 999999999, titles: ['Nope'], fetch: globalThis.fetch
   })
@@ -159,9 +175,7 @@ async function testAnimeTosho () {
   assert.equal(await animetosho.test(), true)
   log('  test() OK')
 
-  // Frieren anidb anime id = 17617, ep1 fid we'll discover dynamically.
-  // Use a stable known anidb aid for testing.
-  const aid = 17617 // Frieren: Beyond Journey's End
+  const aid = 17617
   const movie = await animetosho.movie({
     anidbAid: aid, resolution: '1080', exclusions: [], fetch: globalThis.fetch
   })
@@ -178,7 +192,6 @@ async function testAnimeTosho () {
     assert.equal(batch[0].type, 'batch')
   }
 
-  // missing IDs should throw a user-friendly error
   await assert.rejects(
     () => animetosho.single({ fetch: globalThis.fetch }),
     /AniDB episode ID/i
@@ -243,8 +256,6 @@ async function testNekoBT () {
   log(`  movie(A Silent Voice) → ${movie.length} results`)
   if (movie[0]) assertCommon(movie[0])
 
-  // batch() may legitimately return 0 if no batch of the *requested* season
-  // exists yet. We assert shape on whatever it returns, not result count.
   const batch = await nekobt.batch({
     titles: ['Frieren'], resolution: '1080', exclusions: [], fetch: globalThis.fetch
   })
@@ -255,8 +266,6 @@ async function testNekoBT () {
     assert.match(r.title, /\b(?:batch|complete|season|s\d{1,2}|bd|cour|collection)\b/i)
   })
 
-  // Cross-check using an explicit "Sousou no Frieren S2" query — that should
-  // surface S2 batches without leaking S1 markers.
   const s2batch = await nekobt.batch({
     titles: ['Sousou no Frieren 2nd Season', 'Sousou no Frieren S2'], resolution: '1080', exclusions: [], fetch: globalThis.fetch
   })
@@ -271,7 +280,6 @@ async function testNekoBT () {
   assert.deepEqual(await nekobt.single({ titles: [], fetch: globalThis.fetch }), [])
 }
 
-// Verbatim port of hayase-app/interface src/lib/modules/extensions/extensions.ts createTitles()
 function hayaseCreateTitles (media) {
   const grouped = [...new Set(Object.values(media.title ?? {}).concat(media.synonyms).filter(n => n != null && n.length > 3))]
   const titles = []
@@ -291,11 +299,6 @@ function hayaseCreateTitles (media) {
 
 async function testCoteS4 () {
   section('Classroom of the Elite S4 — Hayase-expanded titles, eps 9/10/11')
-  // Reproduces the exact titles Hayase passes for AniList id 180745.
-  // Hayase's createTitles expands the AniList titles with Season N -> SN
-  // and hyphen-removed variants, so the first several entries are all
-  // subtitled romaji ("Youkoso ... 4th Season 2-nensei-hen Ichi Gakki"),
-  // not the broad English "Classroom of the Elite".
   const titles = hayaseCreateTitles({
     title: {
       romaji: 'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 4th Season 2-nensei-hen Ichi Gakki',
@@ -313,10 +316,7 @@ async function testCoteS4 () {
   })
   const wrongSeason = /\b(?:[1-3](?:st|nd|rd)\s+season|S0?[1-3](?![\d])|S0?[1-3]E\d|season\s+[1-3](?![\d\w-]))/i
 
-  // Strip nekoBT {Tags:...} suffix the same way the extension does, so the
-  // assertion looks at the real release name not the tag block.
   const stripTags = (s) => s.replace(/\{[^{}]*\}/g, '')
-  // The episode marker on the actual release (not buried in a tag suffix).
   const explicitEp = (s) => {
     const t = stripTags(s)
     const m1 = t.match(/\bS\d{1,2}E(\d{1,3})\b/i)
@@ -342,9 +342,6 @@ async function testCoteS4 () {
     }
   }
 
-  // batch() should not return single-episode releases tagged as batch,
-  // and any returned batch must be the requested season (S4) — no S1/S3
-  // batches like the user's screenshot leak.
   const otherSeasonMarker = /\bS0?[123]\b(?!\d)|\bS0?[123]E\d|\b[123](?:st|nd|rd)\s+season\b|\bseason\s+[123](?![\d\w-])/i
   for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt]]) {
     const b = await ext.batch({ titles, episode: 9, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
@@ -358,16 +355,12 @@ async function testCoteS4 () {
 
 async function testFrierenS1NoS2Leaks () {
   section('Frieren S1 — single-season query must not leak S2+ results')
-  // Frieren S1 (AniList id 154587) has no season marker in any title; my code
-  // treats this as "single season or unknown" and must reject any explicit
-  // S2+ release.
   const titles = ['Sousou no Frieren', 'Frieren: Beyond Journey End', 'Frieren']
   const explicitS2 = /\b(?:2nd|3rd|4th) season\b|\bS0?[2-9]\b(?!\d)|\bS0?[2-9]E\d/i
   for (const [name, ext] of [['nekoBT', nekobt]]) {
     const r = await ext.single({ titles, episode: 1, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
     log(`  ${name}: ${r.length} results`)
     for (const x of r) {
-      // Allow combo batches like "S1+S2" (they contain S1), reject pure-S2 markers.
       const isMultiSeasonBatch = /\bS\d\+S\d\b|\bS01\+S02\b/i.test(x.title)
       if (!isMultiSeasonBatch) {
         assert.ok(!explicitS2.test(x.title), `${name}: leaked S2+ on Frieren S1 query: "${x.title}"`)
@@ -378,9 +371,6 @@ async function testFrierenS1NoS2Leaks () {
 
 async function testOverlordIIIThaiSynonymLeak () {
   section('Overlord III — non-ASCII synonyms with a digit must not poison search')
-  // AniList id 101474 — synonyms include "โอเวอร์ลอร์ด ภาค 3" (Thai). The old
-  // sanitizer stripped non-ASCII and left just "3", which then queried nyaa
-  // for "3 09 1080p" and returned every recent ep 9 torrent.
   const titles = hayaseCreateTitles({
     title: {
       romaji: 'Overlord III',
@@ -408,8 +398,6 @@ async function testOverlordIIIThaiSynonymLeak () {
     }
   }
 
-  // SubsPlease's API does fuzzy matching that returns "Gintama - 3-nen
-  // Z-gumi Ginpachi-sensei" when sent the Thai synonym (which contains "3").
   const sp = await subsplease.single({ titles, episode: 9, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
   log(`  SubsPlease single: ${sp.length} results`)
   for (const x of sp) {
@@ -419,11 +407,6 @@ async function testOverlordIIIThaiSynonymLeak () {
 
 async function testRezeroS4NonLatinSynonymLeak () {
   section('Re:ZERO S4 — non-Latin native/synonyms must not leak unrelated shows')
-  // AniList id 189046. The native title "Re:ゼロから始める異世界生活" sanitizes to
-  // just "Re" (CJK stripped), and the Thai/Russian synonyms leave "Re ZERO".
-  // The old guard only dropped cores with *zero* ASCII letters, so "Re" slipped
-  // through and queried nyaa for "Re batch 1080p" — which fuzzy-matched
-  // "Rent-A-Girlfriend ... (Batch)". Every returned result must be Re:Zero.
   const titles = hayaseCreateTitles({
     title: {
       romaji: 'Re:Zero kara Hajimeru Isekai Seikatsu 4th Season',
@@ -453,10 +436,6 @@ async function testRezeroS4NonLatinSynonymLeak () {
 
 async function testSaoOrdinalScaleMovieNoTvLeak () {
   section('SAO Ordinal Scale (movie) — must not leak TV seasons/episodes')
-  // Reproduces the user's screenshot: searching the movie surfaced "Sword Art
-  // Online - 01 ~ 25", "Gun Gale Online - 01 ~ 12" and "Sword Art Online II
-  // 01-24". A synonym like "Sword Art Online: Ordinal Scale" collapses to the
-  // core "Sword Art Online", so the provider fuzzy-matches the whole franchise.
   const media = {
     format: 'MOVIE',
     episodes: 1,
@@ -474,17 +453,8 @@ async function testSaoOrdinalScaleMovieNoTvLeak () {
     ]
   }
   const titles = hayaseCreateTitles(media)
-
-  // The query carries a distinctive subtitle ("Ordinal Scale"), so every result
-  // must contain it. That excludes same-franchise TV ("Sword Art Online II",
-  // "Gun Gale Online", S1 episodes, Alicization) and sibling films
-  // ("Progressive") — the exact leaks from the user's screenshot.
   const isOrdinalScale = t => /\bordinal\b/i.test(t) && /\bscale\b/i.test(t)
 
-  // Hayase treats a movie (episodes === 1) as single-episode, so it only calls
-  // single() with episode 1 — movie() never runs. Passing the AniList media lets
-  // single() recognise the movie and apply the same filter. This is the path
-  // that actually produced the screenshot, so it's the one that must hold.
   let nyaaSingleCount = 0
   for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt]]) {
     const r = await ext.single({ media, titles, episode: 1, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
@@ -497,7 +467,6 @@ async function testSaoOrdinalScaleMovieNoTvLeak () {
   }
   assert.ok(nyaaSingleCount > 0, 'Nyaa single() should surface Ordinal Scale releases for a movie query')
 
-  // movie() must stay clean too (used when a movie has episodes !== 1).
   for (const [name, ext] of [['Nyaa', nyaa], ['nekoBT', nekobt]]) {
     const r = await ext.movie({ media, titles, resolution: '1080', exclusions: [], fetch: globalThis.fetch })
     log(`  ${name} movie(): ${r.length} results`)
@@ -511,6 +480,7 @@ async function testSaoOrdinalScaleMovieNoTvLeak () {
 async function run () {
   unitFilterChecks()
   await testNyaa()
+  await testNyaaTR()
   await testSeadex()
   await testAnimeTosho()
   await testSubsPlease()
